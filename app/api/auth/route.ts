@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     
     if(isPsswordValid){
         
-            const secretText = "TemporySecret8929%"
+            const secretText = process.env.JOSE_SECRET 
 
             const secret= new TextEncoder().encode(secretText)
 
@@ -48,6 +48,20 @@ export async function POST(request: NextRequest) {
                 }).setProtectedHeader({ alg: "HS256" })
                 .sign(secret)
                 console.log(token)
+            const response = NextResponse.json({
+                message: "Login successful",
+                role: user.role,
+            })
+
+            response.cookies.set({
+                name: "login-token",
+                value: token,
+                httpOnly: true,
+                secure:false,
+                sameSite: "lax",
+                maxAge: 60 * 60 * 24 * 7, // 1 week
+            })
+            return response
         
     } else {
         return NextResponse.json({
