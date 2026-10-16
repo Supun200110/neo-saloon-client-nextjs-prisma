@@ -10,7 +10,11 @@ export async function POST(request: NextRequest) {
     if(body.email == null) {
         return NextResponse.json({
             message: "Email is required",
-        })
+        },
+        {
+            status : 422
+        }
+    )
     }
 
     const user = await prisma.user.findFirst(
@@ -27,6 +31,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
             message: "User not found",
+        },
+        {
+            status: 404
+        }
+    )
+    }
+    if(user.status !="ACTIVE"){
+        return NextResponse.json({
+            message: "User is disabled, please contact the administrator",
+        },
+        {
+            status: 403
         }
     )
     }
@@ -34,17 +50,26 @@ export async function POST(request: NextRequest) {
     const isPsswordValid= await compare(body.password, user.password)
     
     if(isPsswordValid){
+            await prisma.user.update({
+                where:{
+                    id: user.id
+                },
+                data:{
+                    lastLogin: new Date(),
+                }
+            })
         
             const secretText = process.env.JOSE_SECRET 
 
             const secret= new TextEncoder().encode(secretText)
 
             const token = await new jose.SignJWT({
+                 id:user.id,
                  email: user.email, 
                  firstName: user.firstName,
                  lastName:user.lastName,
                  role: user.role,
-                 pruvileges: user.privileges, 
+                 privileges: user.privileges, 
                 }).setProtectedHeader({ alg: "HS256" })
                 .sign(secret)
                 console.log(token)
@@ -66,7 +91,11 @@ export async function POST(request: NextRequest) {
     } else {
         return NextResponse.json({
             message: "Invalid password",
-        })
+        },
+        {
+            status: 401
+        }
+    )
     }
 
 }
