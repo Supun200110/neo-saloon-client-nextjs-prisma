@@ -1,4 +1,6 @@
 import prisma from "@/lib/prisma";
+import { UserRegistrationRequestSchema } from "@/types/dto/userRegistraionRequest";
+import type { UserRegistrationRequest } from "@/types/dto/userRegistraionRequest";
 import { RequestUser } from "@/types/requestUser";
 import { getUser, isPrivileged } from "@/utils/authentication";
 import bcrypt from "bcryptjs";
@@ -69,46 +71,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     //email, firstName, lastName, password, phone(optional)
     const body = await request.json()
-    if (body.email == null) {
+
+    //validate the body using zod
+
+    try {
+
+        const parseBody = UserRegistrationRequestSchema.parse(body)
+        console.log(parseBody)
+    }
+    catch (error) {
+        console.log(error)
         return NextResponse.json(
             {
-                message: "Email is required"
+                message: "Invalid request body"
             },
             {
-                status: 422
+                status: 400
             }
         )
     }
-    if (body.firstName == null) {
-        return NextResponse.json(
-            {
-                message: "First name is required"
-            },
-            {
-                status: 422
-            }
-        )
-    }
-    if (body.lastName == null) {
-        return NextResponse.json(
-            {
-                message: "Last name is required"
-            },
-            {
-                status: 422
-            }
-        )
-    }
-    if (body.password == null) {
-        return NextResponse.json(
-            {
-                message: "Password is required"
-            },
-            {
-                status: 422
-            }
-        )
-    }
+
+
     const existingUser = await prisma.user.findFirst({
         where: {
             email: body.email
