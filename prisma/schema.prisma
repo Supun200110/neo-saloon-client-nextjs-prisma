@@ -22,5 +22,6 @@ model User{
   status String @default("ACTIVE") // ACTIVE,BANNED, SUSPENDED
   createdAt DateTime @default(now())
   lastLogin DateTime?
-  privileges String[] @default([]) //["CREATE_PRODUCT","UPDATE_PRODUCT","DELETE_PRODUCT","VIEW_PRODUCT"
+  privileges String[] @default([])
+  profileImage String @default("/images/default-profile.png")
 }
