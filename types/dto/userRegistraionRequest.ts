@@ -1,13 +1,14 @@
-import{z}from"zod"
+import { z } from "zod"
 
-const UserRegistrationRequestSchema= z.object(
+const UserRegistrationRequestSchema = z.object(
     {
-        email :z.string(),
-        firstName:z.string(),
-        lastName:z.string(),
-        password:z.string(),
-
+        email: z.email(),
+        firstName: z.string().max(20),
+        lastName: z.string().max(20),
+        password: z.string(),
+        privileges: z.never().optional(),
+        phone: z.string().optional()
     }
 )
-export type UserRegistrationRequest= z.infer<typeof UserRegistrationRequestSchema>
-export {UserRegistrationRequestSchema}
+export type UserRegistrationRequest = z.infer<typeof UserRegistrationRequestSchema>
+export { UserRegistrationRequestSchema }

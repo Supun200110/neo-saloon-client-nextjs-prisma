@@ -1,10 +1,13 @@
 import prisma from "@/lib/prisma";
 import { UserRegistrationRequestSchema } from "@/types/dto/userRegistraionRequest";
 import type { UserRegistrationRequest } from "@/types/dto/userRegistraionRequest";
+import { UserSelfUpdateRequestSchema } from "@/types/dto/userSelfUpdateRequest";
+import { UserUpdatedByAdminUserRequestSchema } from "@/types/dto/userUpdatedByAdminUserRequest";
 import { RequestUser } from "@/types/requestUser";
 import { getUser, isPrivileged } from "@/utils/authentication";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
+import {z} from "zod"
 
 export async function GET(request: NextRequest) {
     const havePrivilege = await isPrivileged(request, "users:read")
@@ -78,8 +81,57 @@ export async function POST(request: NextRequest) {
 
         const parseBody = UserRegistrationRequestSchema.parse(body)
         console.log(parseBody)
+
+
+
+
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                email: parseBody.email
+            }
+        })
+        if (existingUser != null) {
+            return NextResponse.json(
+                {
+                    message: "User already exists"
+                },
+                {
+                    status: 409
+                }
+            )
+        }
+        const passwordHash = await bcrypt.hash(body.password, 12);
+        await prisma.user.create({
+            data: {
+                email: body.email,
+                firstName: body.firstName,
+                lastName: body.lastName,
+                password: passwordHash,
+                phone: body.phone || null,
+
+            }
+        })
+        return NextResponse.json(
+            {
+                message: "User created successfully",
+            },
+            {
+                status: 201
+            }
+        )
     }
     catch (error) {
+        if (error instanceof z.ZodError) {
+
+            return NextResponse.json(
+                {
+                    message: error.issues[0]?.message ?? "Invalid Input"
+                },
+                {
+                    status: 400
+                }
+            )
+        }
         console.log(error)
         return NextResponse.json(
             {
@@ -90,42 +142,6 @@ export async function POST(request: NextRequest) {
             }
         )
     }
-
-
-    const existingUser = await prisma.user.findFirst({
-        where: {
-            email: body.email
-        }
-    })
-    if (existingUser != null) {
-        return NextResponse.json(
-            {
-                message: "User already exists"
-            },
-            {
-                status: 409
-            }
-        )
-    }
-    const passwordHash = await bcrypt.hash(body.password, 12);
-    await prisma.user.create({
-        data: {
-            email: body.email,
-            firstName: body.firstName,
-            lastName: body.lastName,
-            password: passwordHash,
-            phone: body.phone || null,
-
-        }
-    })
-    return NextResponse.json(
-        {
-            message: "User created successfully",
-        },
-        {
-            status: 201
-        }
-    )
 
 
 }
@@ -144,9 +160,12 @@ export async function PUT(request: NextRequest) {
             }
         )
     }
-    const body = await request.json()
+  try{
+      const body = await request.json()
     if (requestedUser.id == id) {
         //user wants to update his own profile
+        UserSelfUpdateRequestSchema.parse(body)
+        
         const user = await prisma.user.findUnique({
             where: {
                 id: id
@@ -162,6 +181,7 @@ export async function PUT(request: NextRequest) {
                 }
             )
         }
+      
         await prisma.user.update({
             where: {
                 id: id
@@ -197,6 +217,7 @@ export async function PUT(request: NextRequest) {
             )
 
         }
+        UserUpdatedByAdminUserRequestSchema.parse(body)
         const user = await prisma.user.findUnique({
             where: {
                 id: id || "000000"
@@ -241,5 +262,26 @@ export async function PUT(request: NextRequest) {
 
 
     }
+
+  }catch(error){
+    if(error instanceof z.ZodError){
+        return NextResponse.json(
+            {
+                message:error.issues[0]?.message ?? "Invalid Input",
+            },
+            {
+                status:400
+            }
+        )
+    }
+    return NextResponse.json(
+        {
+            message:"Internal server error"
+        },
+        {
+            status:500
+        }
+    )
+  }
 
 } 
