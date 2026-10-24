@@ -5,9 +5,10 @@ import { UserSelfUpdateRequestSchema } from "@/types/dto/userSelfUpdateRequest";
 import { UserUpdatedByAdminUserRequestSchema } from "@/types/dto/userUpdatedByAdminUserRequest";
 import { RequestUser } from "@/types/requestUser";
 import { getUser, isPrivileged } from "@/utils/authentication";
+import getPaginationInfo from "@/utils/pageInfoRetieval";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
-import {z} from "zod"
+import { z } from "zod"
 
 export async function GET(request: NextRequest) {
     const havePrivilege = await isPrivileged(request, "users:read")
@@ -21,15 +22,12 @@ export async function GET(request: NextRequest) {
             }
         )
     }
-    const pageNumberInString = request.nextUrl.searchParams.get("pageNumber") || "1"
-    const pageSizeInString = request.nextUrl.searchParams.get("pageSize") || "10"
-    const pageNumber = parseInt(pageNumberInString)
-    const pageSize = parseInt(pageSizeInString)
+    const params = getPaginationInfo(request)
 
     const userCount = await prisma.user.count()
-    const totalPages = Math.ceil(userCount / pageSize)
+    const totalPages = Math.ceil(userCount / params.pageSize)
 
-    if (pageNumber > totalPages) {
+    if (params.pageNumber > totalPages) {
         return NextResponse.json(
             {
                 message: "Page number is greater than total pages",
@@ -42,8 +40,8 @@ export async function GET(request: NextRequest) {
 
 
     const users = await prisma.user.findMany({
-        skip: (pageNumber - 1) * pageSize,
-        take: pageSize,
+        skip: (params.pageNumber - 1) * params.pageSize,
+        take: params.pageSize,
         select: {
             id: true,
             email: true,
@@ -60,10 +58,10 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json({
         message: "Users fetched successfully",
-        users: users,
+        data: users,
         pagination: {
-            pageNumber: pageNumber,
-            pageSize: pageSize,
+            pageNumber: params.pageNumber,
+            pageSize: params.pageSize,
             totalPages: totalPages,
             totalCount: userCount
         }
@@ -160,128 +158,128 @@ export async function PUT(request: NextRequest) {
             }
         )
     }
-  try{
-      const body = await request.json()
-    if (requestedUser.id == id) {
-        //user wants to update his own profile
-        UserSelfUpdateRequestSchema.parse(body)
-        
-        const user = await prisma.user.findUnique({
-            where: {
-                id: id
+    try {
+        const body = await request.json()
+        if (requestedUser.id == id) {
+            //user wants to update his own profile
+            UserSelfUpdateRequestSchema.parse(body)
+
+            const user = await prisma.user.findUnique({
+                where: {
+                    id: id
+                }
+            })
+            if (user == null) {
+                return NextResponse.json(
+                    {
+                        message: "User Not Found"
+                    },
+                    {
+                        status: 404
+                    }
+                )
             }
-        })
-        if (user == null) {
+
+            await prisma.user.update({
+                where: {
+                    id: id
+                },
+                data: {
+                    email: body.email || user.email,
+                    firstName: body.firstName || user.firstName,
+                    lastName: body.lastName || user.lastName,
+                    phone: body.phone || user.phone,
+                    profileImage: body.profileImage || user.profileImage
+                }
+            })
             return NextResponse.json(
                 {
-                    message: "User Not Found"
+                    message: "User updated successfully",
                 },
                 {
-                    status: 404
+                    status: 200
+                }
+            )
+
+        } else {
+            //user wants to update another user's profile
+            const havePrivilege = await isPrivileged(request, "user:edit")
+            if (!havePrivilege) {
+                return NextResponse.json(
+                    {
+                        message: "You dont have privilege to edit other users"
+                    },
+                    {
+                        status: 403
+                    }
+                )
+
+            }
+            UserUpdatedByAdminUserRequestSchema.parse(body)
+            const user = await prisma.user.findUnique({
+                where: {
+                    id: id || "000000"
+                }
+            })
+            if (user == null) {
+                return NextResponse.json(
+                    {
+                        message: "User Not Found"
+                    },
+                    {
+                        status: 404
+                    }
+                )
+            }
+            await prisma.user.update({
+                where: {
+                    id: id || "000000"
+                },
+                data: {
+                    email: body.email || user.email,
+                    firstName: body.firstName || user.firstName,
+                    lastName: body.lastName || user.lastName,
+                    phone: body.phone || user.phone,
+                    profileImage: body.profileImage || user.profileImage,
+                    role: body.role || user.role,
+                    status: body.status || user.status,
+                    privileges: body.privileges || user.privileges,
+
+                }
+
+            }
+            )
+            return NextResponse.json(
+                {
+                    message: "User updated successfully",
+                },
+                {
+                    status: 200
+                }
+            )
+
+
+        }
+
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                {
+                    message: error.issues[0]?.message ?? "Invalid Input",
+                },
+                {
+                    status: 400
                 }
             )
         }
-      
-        await prisma.user.update({
-            where: {
-                id: id
-            },
-            data: {
-                email: body.email || user.email,
-                firstName: body.firstName || user.firstName,
-                lastName: body.lastName || user.lastName,
-                phone: body.phone || user.phone,
-                profileImage: body.profileImage || user.profileImage
-            }
-        })
         return NextResponse.json(
             {
-                message: "User updated successfully",
+                message: "Internal server error"
             },
             {
-                status: 200
+                status: 500
             }
         )
-
-    } else {
-        //user wants to update another user's profile
-        const havePrivilege = await isPrivileged(request, "user:edit")
-        if (!havePrivilege) {
-            return NextResponse.json(
-                {
-                    message: "You dont have privilege to edit other users"
-                },
-                {
-                    status: 403
-                }
-            )
-
-        }
-        UserUpdatedByAdminUserRequestSchema.parse(body)
-        const user = await prisma.user.findUnique({
-            where: {
-                id: id || "000000"
-            }
-        })
-        if (user == null) {
-            return NextResponse.json(
-                {
-                    message: "User Not Found"
-                },
-                {
-                    status: 404
-                }
-            )
-        }
-        await prisma.user.update({
-            where: {
-                id: id || "000000"
-            },
-            data: {
-                email: body.email || user.email,
-                firstName: body.firstName || user.firstName,
-                lastName: body.lastName || user.lastName,
-                phone: body.phone || user.phone,
-                profileImage: body.profileImage || user.profileImage,
-                role: body.role || user.role,
-                status: body.status || user.status,
-                privileges: body.privileges || user.privileges,
-
-            }
-
-        }
-        )
-        return NextResponse.json(
-            {
-                message: "User updated successfully",
-            },
-            {
-                status: 200
-            }
-        )
-
-
     }
-
-  }catch(error){
-    if(error instanceof z.ZodError){
-        return NextResponse.json(
-            {
-                message:error.issues[0]?.message ?? "Invalid Input",
-            },
-            {
-                status:400
-            }
-        )
-    }
-    return NextResponse.json(
-        {
-            message:"Internal server error"
-        },
-        {
-            status:500
-        }
-    )
-  }
 
 } 

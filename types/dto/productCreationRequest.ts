@@ -1,6 +1,6 @@
 import {z} from "zod";
 
-const ProductStatusEnum = z.enum(["ACTIVE", "INACTIVE", "DISCONTINUED"])
+const ProductStatusEnum = z.enum(["ACTIVE", "INACTIVE", "DELETED"])
 const MediaTypeEnum = z.enum(["IMAGE","VIDEO"])
 
 const ProductCreationRequestSchema= z.object({
@@ -20,3 +20,6 @@ const ProductCreationRequestSchema= z.object({
     }))
     
 })
+
+export type ProductCreationRequest = z.infer<typeof ProductCreationRequestSchema>;
+export default ProductCreationRequestSchema;
